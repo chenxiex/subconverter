@@ -1,0 +1,136 @@
+# Based on ../../../../../base/base/all_base.tpl and the user's xray.json.
+# Subscription nodes, proxy groups, rule providers, and routing rules are injected
+# by vless2clash and intentionally do not live in this base configuration.
+
+allow-lan: true
+mode: rule
+log-level: warning
+ipv6: true
+external-controller: 127.0.0.1:9090
+
+# Preserve the three Xray mixed inbounds and their listen scopes.
+listeners:
+  - name: socks
+    type: mixed
+    listen: 127.0.0.1
+    port: 10808
+    udp: true
+  - name: socks2
+    type: mixed
+    listen: 127.0.0.1
+    port: 10809
+    udp: true
+  - name: socks3
+    type: mixed
+    listen: 0.0.0.0
+    port: 10810
+    udp: true
+
+# Xray uses destOverride=[http,tls] with routeOnly=true. In Mihomo,
+# override-destination=false keeps the same route-only behavior.
+sniffer:
+  enable: true
+  force-dns-mapping: false
+  parse-pure-ip: true
+  override-destination: false
+  sniff:
+    HTTP:
+      ports:
+        - 0-65535
+    TLS:
+      ports:
+        - 0-65535
+
+# Static bootstrap records copied from xray.json's dns.hosts.
+hosts:
+  dns.google:
+    - 8.8.8.8
+    - 8.8.4.4
+    - 2001:4860:4860::8888
+    - 2001:4860:4860::8844
+  dns.alidns.com:
+    - 223.5.5.5
+    - 223.6.6.6
+    - 2400:3200::1
+    - 2400:3200:baba::1
+  one.one.one.one:
+    - 1.1.1.1
+    - 1.0.0.1
+    - 2606:4700:4700::1111
+    - 2606:4700:4700::1001
+  1dot1dot1dot1.cloudflare-dns.com:
+    - 1.1.1.1
+    - 1.0.0.1
+    - 2606:4700:4700::1111
+    - 2606:4700:4700::1001
+  cloudflare-dns.com:
+    - 104.16.249.249
+    - 104.16.248.249
+    - 2606:4700::6810:f8f9
+    - 2606:4700::6810:f9f9
+  dns.cloudflare.com:
+    - 162.159.61.8
+    - 172.64.41.8
+    - 2a06:98c1:52::8
+    - 2803:f800:53::8
+  dot.pub:
+    - 1.12.12.12
+    - 120.53.53.53
+  doh.pub:
+    - 1.12.12.12
+    - 120.53.53.53
+  dns.quad9.net:
+    - 9.9.9.9
+    - 149.112.112.112
+    - 2620:fe::fe
+    - 2620:fe::9
+  dns.yandex.net:
+    - 77.88.8.8
+    - 77.88.8.1
+    - 2a02:6b8::feed:0ff
+    - 2a02:6b8:0:1::feed:0ff
+  dns.sb:
+    - 45.11.45.11
+    - 185.222.222.222
+    - "2a09::"
+    - "2a11::"
+  dns.umbrella.com:
+    - 208.67.220.220
+    - 208.67.222.222
+    - 2620:119:35::35
+    - 2620:119:53::53
+  dns.sse.cisco.com:
+    - 208.67.220.220
+    - 208.67.222.222
+    - 2620:119:35::35
+    - 2620:119:53::53
+  engage.cloudflareclient.com:
+    - 162.159.192.1
+    - 2606:4700:d0::a29f:c001
+  localhost:
+    - ::1
+
+dns:
+  enable: true
+  cache-algorithm: lru
+  use-hosts: true
+  use-system-hosts: true
+  respect-rules: true
+  ipv6: true
+  enhanced-mode: redir-host
+  default-nameserver:
+    - tls://223.5.5.5:853
+    - tls://1.12.12.12:853
+    - system
+  nameserver:
+    - https://cloudflare-dns.com/dns-query#DNS&h3=true
+    - https://dns.google/dns-query
+  proxy-server-nameserver:
+    - tls://223.5.5.5:853
+  direct-nameserver:
+    - https://dns.alidns.com/dns-query#h3=true
+    - system
+
+proxies: null
+proxy-groups: null
+rules: null
