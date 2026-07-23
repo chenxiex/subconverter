@@ -1,0 +1,95 @@
+name: Update VLESS Clash config in Gist
+
+on:
+  schedule:
+    # GitHub Actions cron uses UTC. This is 11:17 in Asia/Shanghai.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vless2clash-gist
+  cancel-in-progress: true
+
+jobs:
+  update-gist:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+        working-directory: vless2clash
+    env:
+      VLESS2CLASH_URL: ${{ secrets.VLESS2CLASH_URL }}
+      VLESS2CLASH_CONFIG: ${{ secrets.VLESS2CLASH_CONFIG }}
+      VLESS2CLASH_OUTPUT: output.yaml
+      GIST_ID: ${{ secrets.GIST_ID }}
+      GIST_FILENAME: ${{ secrets.GIST_FILENAME }}
+      GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: vless2clash/uv.lock
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in VLESS2CLASH_URL VLESS2CLASH_CONFIG GIST_ID GIST_FILENAME GIST_TOKEN; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing required GitHub Secrets: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Generate Clash configuration
+        run: |
+          set -uo pipefail
+          set +e
+          uv run --frozen vless2clash
+          status=$?
+          set -e
+
+          if [[ $status -ne 0 && $status -ne 2 ]]; then
+            exit "$status"
+          fi
+          if [[ ! -s "$VLESS2CLASH_OUTPUT" ]]; then
+            echo "vless2clash did not generate a non-empty output file" >&2
+            exit 1
+          fi
+          if [[ $status -eq 2 ]]; then
+            echo "::warning::vless2clash generated the file with rule validation warnings"
+          fi
+
+      - name: Upload configuration to Gist
+        run: |
+          set -euo pipefail
+          payload_file="$(mktemp)"
+          trap 'rm -f "$payload_file"' EXIT
+
+          jq -n \
+            --arg filename "$GIST_FILENAME" \
+            --rawfile content "$VLESS2CLASH_OUTPUT" \
+            '{files: {($filename): {content: $content}}}' > "$payload_file"
+
+          curl --fail-with-body --silent --show-error \
+            --request PATCH \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GIST_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --header "Content-Type: application/json" \
+            --data-binary "@$payload_file" \
+            "https://api.github.com/gists/$GIST_ID" > /dev/null
+
+          echo "Gist file updated successfully."
