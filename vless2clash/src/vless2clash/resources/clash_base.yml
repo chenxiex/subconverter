@@ -123,12 +123,14 @@ dns:
     - tls://1.12.12.12:853
     - system
   nameserver:
-    - https://cloudflare-dns.com/dns-query#DNS&h3=true
+    - https://cloudflare-dns.com/dns-query
     - https://dns.google/dns-query
   proxy-server-nameserver:
     - tls://223.5.5.5:853
+    - tls://1.12.12.12:853
+    - system
   direct-nameserver:
-    - https://dns.alidns.com/dns-query#h3=true
+    - https://dns.alidns.com/dns-query
     - system
 
 proxies: null
