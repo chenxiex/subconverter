@@ -132,7 +132,13 @@ dns:
     - system
   direct-nameserver:
     - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
     - system
+  nameserver-policy:
+    "www.gstatic.com":
+      - tls://223.5.5.5:853
+      - tls://1.12.12.12:853
+      - system
 
 proxies: null
 proxy-groups: null
