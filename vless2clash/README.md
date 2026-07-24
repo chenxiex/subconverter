@@ -73,6 +73,13 @@ uv run vless2clash
 
 外部 INI 当前支持 `custom_proxy_group`、Clash HTTP `ruleset`、`[]` 内联规则、`enable_rule_generator` 和 `overwrite_original_rules`。它不是完整重写 subconverter 的全部脚本、模板和规则格式。
 
+`url-test`、`fallback` 和 `load-balance` 代理组的测试参数格式为
+`interval,timeout,tolerance,max-failed-times`；可选参数可以留空。例如：
+
+```ini
+custom_proxy_group=自动选择`url-test`.*`https://example.com/204`300,5,100,3
+```
+
 `clash-classic:`、`clash-domain:` 和 `clash-ipcidr:` 保持原有二字段规则集逻辑：转换时不下载规则文件，只在结果中生成 `rule-provider`。
 
 自带第三字段策略/代理组的完整 Clash 规则使用专用的 `clash-rules:` 前缀，不再与二字段规则集自动混合判断：

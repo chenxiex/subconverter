@@ -71,6 +71,8 @@ def build_proxy_groups(specs: list[str], proxies: list[dict[str, object]]) -> li
                 group["timeout"] = int(interval_parts[1])
             if len(interval_parts) > 2 and interval_parts[2]:
                 group["tolerance"] = int(interval_parts[2])
+            if len(interval_parts) > 3 and interval_parts[3]:
+                group["max-failed-times"] = int(interval_parts[3])
 
         members: list[str] = []
         for selector in selectors:

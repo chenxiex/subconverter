@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from vless2clash.converter import build_clash_config, load_default_clash_config
-from vless2clash.external_config import build_rulesets, parse_external_config
+from vless2clash.external_config import (
+    build_proxy_groups,
+    build_rulesets,
+    parse_external_config,
+)
 
 
 def test_given_external_config_shape() -> None:
@@ -27,6 +31,38 @@ ruleset=香港,[]FINAL
         "GEOIP,CN,DIRECT",
         "MATCH,香港",
     ]
+
+
+def test_url_test_supports_max_failed_times() -> None:
+    groups = build_proxy_groups(
+        ["自动选择`url-test`.*`https://example.com/204`300,5,100,3"],
+        [{"name": "hk-1", "type": "vless"}],
+    )
+
+    assert groups == [
+        {
+            "name": "自动选择",
+            "type": "url-test",
+            "url": "https://example.com/204",
+            "interval": 300,
+            "timeout": 5,
+            "tolerance": 100,
+            "max-failed-times": 3,
+            "proxies": ["hk-1"],
+        }
+    ]
+
+
+def test_url_test_max_failed_times_allows_empty_optional_parameters() -> None:
+    groups = build_proxy_groups(
+        ["自动选择`url-test`.*`https://example.com/204`300,,,3"],
+        [{"name": "hk-1", "type": "vless"}],
+    )
+
+    assert groups[0]["interval"] == 300
+    assert groups[0]["max-failed-times"] == 3
+    assert "timeout" not in groups[0]
+    assert "tolerance" not in groups[0]
 
 
 def test_copied_default_clash_template() -> None:
