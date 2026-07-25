@@ -137,7 +137,7 @@ dns:
     - https://doh.pub/dns-query
     - system
   nameserver-policy:
-    "www.gstatic.com":
+    "www.gstatic.com,www.google.com":
       - tls://223.5.5.5:853
       - tls://1.12.12.12:853
       - system
