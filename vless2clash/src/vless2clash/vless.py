@@ -53,8 +53,7 @@ def _decode_extra(value: str) -> dict[str, object]:
         except (json.JSONDecodeError, TypeError):
             continue
         if isinstance(parsed, dict):
-            nested = parsed.get("xhttpSettings") or parsed.get("splithttpSettings")
-            return nested if isinstance(nested, dict) else parsed
+            return parsed
     raise VlessParseError("xHTTP extra 参数不是有效的 JSON 或 URL-safe Base64 JSON")
 
 
@@ -84,6 +83,10 @@ XHTTP_ALIASES = {
     "session-placement": "session-placement",
     "sessionKey": "session-key",
     "session-key": "session-key",
+    "sessionTable": "session-table",
+    "session-table": "session-table",
+    "sessionLength": "session-length",
+    "session-length": "session-length",
     "seqPlacement": "seq-placement",
     "seq-placement": "seq-placement",
     "seqKey": "seq-key",
@@ -126,9 +129,199 @@ def _normalize_reuse_settings(value: object) -> dict[str, object]:
     return result
 
 
+def _normalize_headers(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return value
+    return parsed if isinstance(parsed, dict) else value
+
+
+def _normalize_alpn(value: object) -> object:
+    if isinstance(value, str):
+        return [item for item in re.split(r"[,|]", value) if item]
+    return value
+
+
+def _normalize_reality_settings(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, object] = {}
+    public_key = value.get("publicKey") or value.get("public-key")
+    short_id = value.get("shortId") or value.get("short-id")
+    if public_key:
+        result["public-key"] = public_key
+    if short_id:
+        result["short-id"] = short_id
+    return result
+
+
+def _normalize_ech_settings(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, object] = {}
+    enabled = value.get("enable")
+    if isinstance(enabled, str):
+        parsed_enabled = _boolean(enabled)
+        enabled = parsed_enabled if parsed_enabled is not None else enabled
+    if enabled is not None:
+        result["enable"] = enabled
+    config = value.get("config") or value.get("Config")
+    query_name = value.get("queryServerName") or value.get("query-server-name")
+    if config:
+        result["config"] = config
+    if query_name:
+        result["query-server-name"] = query_name
+    return result
+
+
+def _xray_ech_settings(tls_settings: dict[str, object]) -> dict[str, object]:
+    nested = tls_settings.get("echSettings")
+    nested_settings = nested if isinstance(nested, dict) else {}
+    config_list = (
+        nested_settings.get("ConfigList")
+        or nested_settings.get("configList")
+        or tls_settings.get("echConfigList")
+    )
+    force_query = (
+        nested_settings.get("ForceQuery")
+        or nested_settings.get("forceQuery")
+        or tls_settings.get("echForceQuery")
+    )
+    if not config_list and not force_query:
+        return {}
+
+    result: dict[str, object] = {"enable": True}
+    if not isinstance(config_list, str) or not config_list:
+        return result
+
+    query_match = re.fullmatch(
+        r"([^+]+)\+(?:udp|https?|h2c)(?:\+local)?://.+", config_list
+    )
+    if query_match:
+        result["query-server-name"] = query_match.group(1)
+    elif "://" not in config_list:
+        result["config"] = config_list
+    return result
+
+
+def _normalize_download_settings(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+
+    result: dict[str, object] = {}
+    aliases = {
+        "address": "server",
+        "server": "server",
+        "port": "port",
+        "tls": "tls",
+        "alpn": "alpn",
+        "path": "path",
+        "host": "host",
+        "headers": "headers",
+        "skipCertVerify": "skip-cert-verify",
+        "skip-cert-verify": "skip-cert-verify",
+        "nameCertVerify": "name-cert-verify",
+        "name-cert-verify": "name-cert-verify",
+        "certificate": "certificate",
+        "privateKey": "private-key",
+        "private-key": "private-key",
+        "serverName": "servername",
+        "servername": "servername",
+        "clientFingerprint": "client-fingerprint",
+        "client-fingerprint": "client-fingerprint",
+        "fingerprint": "fingerprint",
+    }
+    for key, item in value.items():
+        output_key = aliases.get(key)
+        if not output_key or item in (None, ""):
+            continue
+        if output_key == "port":
+            item = _number(item)
+        elif output_key in {"tls", "skip-cert-verify"} and isinstance(item, str):
+            parsed = _boolean(item)
+            item = parsed if parsed is not None else item
+        elif output_key == "alpn":
+            item = _normalize_alpn(item)
+        elif output_key == "headers":
+            item = _normalize_headers(item)
+        result[output_key] = item
+
+    security = value.get("security")
+    if isinstance(security, str):
+        security = security.lower()
+        if security in {"tls", "reality"}:
+            result["tls"] = True
+        elif security in {"none", ""}:
+            result["tls"] = False
+
+    xhttp_settings = value.get("xhttpSettings") or value.get("splithttpSettings")
+    if isinstance(xhttp_settings, dict):
+        for key in ("path", "host", "headers"):
+            item = xhttp_settings.get(key)
+            if item not in (None, ""):
+                result[key] = _normalize_headers(item) if key == "headers" else item
+        reuse = (
+            xhttp_settings.get("reuse-settings")
+            or xhttp_settings.get("reuseSettings")
+            or xhttp_settings.get("xmux")
+        )
+        normalized_reuse = _normalize_reuse_settings(reuse)
+        if normalized_reuse:
+            result["reuse-settings"] = normalized_reuse
+
+    direct_reuse = (
+        value.get("reuse-settings") or value.get("reuseSettings") or value.get("xmux")
+    )
+    normalized_reuse = _normalize_reuse_settings(direct_reuse)
+    if normalized_reuse:
+        result["reuse-settings"] = normalized_reuse
+
+    tls_settings = value.get("tlsSettings")
+    if isinstance(tls_settings, dict):
+        allow_insecure = tls_settings.get("allowInsecure")
+        if allow_insecure is not None:
+            if isinstance(allow_insecure, str):
+                parsed = _boolean(allow_insecure)
+                allow_insecure = parsed if parsed is not None else allow_insecure
+            result["skip-cert-verify"] = allow_insecure
+        servername = tls_settings.get("serverName")
+        if servername:
+            result["servername"] = servername
+        fingerprint = tls_settings.get("fingerprint")
+        if fingerprint:
+            result["client-fingerprint"] = fingerprint
+        alpn = tls_settings.get("alpn")
+        if alpn:
+            result["alpn"] = _normalize_alpn(alpn)
+        name_cert_verify = tls_settings.get("verifyPeerCertByName")
+        if name_cert_verify:
+            result["name-cert-verify"] = name_cert_verify
+        ech = _xray_ech_settings(tls_settings)
+        if ech:
+            result["ech-opts"] = ech
+
+    ech = _normalize_ech_settings(value.get("echOpts") or value.get("ech-opts"))
+    if ech:
+        result["ech-opts"] = ech
+
+    reality = _normalize_reality_settings(
+        value.get("realitySettings")
+        or value.get("realityOpts")
+        or value.get("reality-opts")
+    )
+    if security == "reality" and reality:
+        result["reality-opts"] = reality
+    return result
+
+
 def _normalize_xhttp(params: dict[str, str]) -> dict[str, object]:
     extra = _decode_extra(params.get("extra", "")) if params.get("extra") else {}
-    combined: dict[str, object] = {**extra, **params}
+    nested = extra.get("xhttpSettings") or extra.get("splithttpSettings")
+    nested_settings = nested if isinstance(nested, dict) else {}
+    combined: dict[str, object] = {**extra, **nested_settings, **params}
     result: dict[str, object] = {}
     for key, value in combined.items():
         output_key = XHTTP_ALIASES.get(key)
@@ -139,18 +332,26 @@ def _normalize_xhttp(params: dict[str, str]) -> dict[str, object]:
             value = parsed if parsed is not None else value
         elif output_key in INTEGER_XHTTP_FIELDS:
             value = _number(value)
-        elif output_key == "headers" and isinstance(value, str):
-            try:
-                parsed_headers = json.loads(value)
-                value = parsed_headers if isinstance(parsed_headers, dict) else value
-            except json.JSONDecodeError:
-                pass
+        elif output_key == "headers":
+            value = _normalize_headers(value)
         result[output_key] = value
 
-    reuse = extra.get("reuse-settings") or extra.get("reuseSettings") or extra.get("xmux")
+    reuse = (
+        combined.get("reuse-settings")
+        or combined.get("reuseSettings")
+        or combined.get("xmux")
+    )
     normalized_reuse = _normalize_reuse_settings(reuse)
     if normalized_reuse:
         result["reuse-settings"] = normalized_reuse
+    download = _normalize_download_settings(
+        extra.get("downloadSettings")
+        or extra.get("download-settings")
+        or nested_settings.get("downloadSettings")
+        or nested_settings.get("download-settings")
+    )
+    if download:
+        result["download-settings"] = download
     return result
 
 
@@ -218,7 +419,7 @@ def parse_vless_link(link: str) -> dict[str, object]:
 
     public_key = _first(params, "pbk", "public-key")
     short_id = _first(params, "sid", "short-id")
-    if security == "reality" or public_key or short_id:
+    if security == "reality" or (not security and (public_key or short_id)):
         reality: dict[str, str] = {}
         if public_key:
             reality["public-key"] = public_key

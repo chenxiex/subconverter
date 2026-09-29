@@ -67,9 +67,20 @@ uv run vless2clash
 - HTTPUpgrade（转换成 Mihomo 的 WebSocket HTTP Upgrade 表示）；
 - xHTTP 和旧称 SplitHTTP；
 - xHTTP 的 `path`、`host`、`mode` 及当前 Mihomo `xhttp-opts` 常用字段；
-- `extra` 中的 JSON 或 URL-safe Base64 JSON，以及 `xmux`/`reuse-settings`；
+- `extra` 中的 JSON 或 URL-safe Base64 JSON、`xmux`/`reuse-settings`，以及独立下行的 `downloadSettings`；
 - TLS、Reality、ALPN、客户端指纹、`packet-encoding`；
 - VLESS `encryption`，包括 ML-KEM-768/X25519 配置串。
+
+Xray 的 `downloadSettings.tlsSettings.echConfigList` 若使用固定 Base64 配置，会转换为
+Mihomo 的 `ech-opts.config`。若使用 `查询域名+DNS URL` 形式，则转换为
+`ech-opts.query-server-name`；Mihomo 不支持为单个代理保留其中指定的 DNS URL 和
+`echForceQuery` 行为，实际查询使用 Mihomo 自身的 DNS 配置。
+
+Mihomo 当前会让 xHTTP 下载连接继承上行的 Reality 设置，同时又拒绝使用空的
+`download-settings.reality-opts` 关闭继承。因此 Xray 中“Reality 上行、普通 TLS
+下行”的组合暂时无法无损表示；转换器仍会保留下载服务器、TLS、路径、SNI、指纹
+和 ECH 等可表达字段。显式 `security=tls` 的节点不会因为残留 `pbk` 被误判为
+Reality。
 
 外部 INI 当前支持 `custom_proxy_group`、Clash HTTP `ruleset`、`[]` 内联规则、`enable_rule_generator` 和 `overwrite_original_rules`。它不是完整重写 subconverter 的全部脚本、模板和规则格式。
 
