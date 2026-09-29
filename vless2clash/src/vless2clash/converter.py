@@ -5,7 +5,12 @@ from importlib.resources import files
 
 import yaml
 
-from .external_config import ExternalConfig, build_proxy_groups, build_rulesets
+from .external_config import (
+    ExternalConfig,
+    apply_dialer_proxies,
+    build_proxy_groups,
+    build_rulesets,
+)
 
 
 def load_default_clash_config() -> dict[str, object]:
@@ -32,6 +37,16 @@ def build_clash_config(
         config["proxy-groups"] = [
             {"name": "PROXY", "type": "select", "proxies": [str(item["name"]) for item in proxies]}
         ]
+
+    if external and external.dialer_proxies:
+        groups = config["proxy-groups"]
+        dialer_warnings = apply_dialer_proxies(
+            external.dialer_proxies,
+            proxies,
+            group_names={str(group["name"]) for group in groups},
+        )
+        if warnings is not None:
+            warnings.extend(dialer_warnings)
 
     original_rules = config.get("rules")
     original_rule_list = original_rules if isinstance(original_rules, list) else []

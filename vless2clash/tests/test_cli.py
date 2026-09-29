@@ -61,6 +61,32 @@ ruleset=clash-rules:https://example.com/policy.yaml
     assert "MISSING" in stderr
 
 
+def test_external_config_adds_dialer_proxy_to_matching_node(tmp_path) -> None:
+    subscription = tmp_path / "subscription.txt"
+    external = tmp_path / "subconverter.ini"
+    output = tmp_path / "output.yaml"
+    subscription.write_text(
+        "\n".join(
+            [
+                "vless://relay@example.com:443?encryption=none&type=tcp#relay",
+                "vless://exit@example.net:443?encryption=none&type=tcp#exit-hk",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    external.write_text(
+        "custom_proxy_group=中转`select`^relay$\n"
+        "dialer_proxy=^exit-hk$`中转\n",
+        encoding="utf-8",
+    )
+
+    assert run(
+        ["--url", str(subscription), "--config", str(external), "--output", str(output)]
+    ) == 0
+    document = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert document["proxies"][1]["dialer-proxy"] == "中转"
+
+
 def test_reads_inputs_from_default_dotenv(tmp_path, monkeypatch) -> None:
     subscription = tmp_path / "subscription.txt"
     output = tmp_path / "from-dotenv.yaml"

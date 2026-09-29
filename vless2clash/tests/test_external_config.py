@@ -4,10 +4,83 @@ import pytest
 
 from vless2clash.converter import build_clash_config, load_default_clash_config
 from vless2clash.external_config import (
+    apply_dialer_proxies,
     build_proxy_groups,
     build_rulesets,
     parse_external_config,
 )
+
+
+def test_dialer_proxy_matches_node_name_and_accepts_group_target() -> None:
+    external = parse_external_config(
+        """
+custom_proxy_group=中转选择`select`relay
+dialer_proxy=^落地(?:香港|日本)$`中转选择
+"""
+    )
+    proxies = [
+        {"name": "relay", "type": "vless"},
+        {"name": "落地香港", "type": "vless"},
+        {"name": "落地日本", "type": "vless"},
+        {"name": "其他", "type": "vless"},
+    ]
+
+    config = build_clash_config(proxies, external)
+
+    assert external.dialer_proxies == ["^落地(?:香港|日本)$`中转选择"]
+    assert config["proxies"][1]["dialer-proxy"] == "中转选择"
+    assert config["proxies"][2]["dialer-proxy"] == "中转选择"
+    assert "dialer-proxy" not in config["proxies"][0]
+    assert "dialer-proxy" not in config["proxies"][3]
+
+
+def test_later_dialer_proxy_setting_overrides_earlier_match() -> None:
+    proxies = [
+        {"name": "relay-a", "type": "vless"},
+        {"name": "relay-b", "type": "vless"},
+        {"name": "落地香港", "type": "vless"},
+    ]
+
+    warnings = apply_dialer_proxies(
+        ["^落地`relay-a", "香港$`relay-b"],
+        proxies,
+    )
+
+    assert warnings == []
+    assert proxies[2]["dialer-proxy"] == "relay-b"
+
+
+def test_unmatched_dialer_proxy_returns_warning() -> None:
+    proxies = [{"name": "relay", "type": "vless"}]
+
+    warnings = apply_dialer_proxies(["^missing$`relay"], proxies)
+
+    assert warnings == ["dialer_proxy '^missing$' 没有匹配任何节点"]
+
+
+def test_unmatched_rule_preserves_existing_dialer_proxy() -> None:
+    proxies = [
+        {"name": "relay", "type": "vless"},
+        {"name": "exit", "type": "vless", "dialer-proxy": "relay"},
+    ]
+
+    apply_dialer_proxies(["^other$`relay"], proxies)
+
+    assert proxies[1]["dialer-proxy"] == "relay"
+
+
+@pytest.mark.parametrize(
+    ("spec", "message"),
+    [
+        ("missing-separator", "格式无效"),
+        ("[`relay", "正则表达式无效"),
+        ("target`missing", "不存在的代理或代理组"),
+        ("^target$`target", "不能将自身设为 dialer-proxy"),
+    ],
+)
+def test_invalid_dialer_proxy_setting_fails(spec: str, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        apply_dialer_proxies([spec], [{"name": "target", "type": "vless"}])
 
 
 def test_given_external_config_shape() -> None:

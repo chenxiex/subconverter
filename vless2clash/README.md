@@ -82,7 +82,29 @@ TLS 下行”时，转换器会在 `download-settings` 中生成
 `reality-opts: {}` 会被 Mihomo 拒绝，不能达到相同效果。显式 `security=tls` 的节点
 也不会因为残留 `pbk` 被误判为 Reality。
 
-外部 INI 当前支持 `custom_proxy_group`、Clash HTTP `ruleset`、`[]` 内联规则、`enable_rule_generator` 和 `overwrite_original_rules`。它不是完整重写 subconverter 的全部脚本、模板和规则格式。
+外部 INI 当前支持 `custom_proxy_group`、`dialer_proxy`、Clash HTTP `ruleset`、`[]` 内联规则、`enable_rule_generator` 和 `overwrite_original_rules`。它不是完整重写 subconverter 的全部脚本、模板和规则格式。
+
+### 为匹配节点设置 dialer-proxy
+
+在 `--config` 或 `VLESS2CLASH_CONFIG` 指定的 `subconverter.ini` 中，可以添加多条
+`dialer_proxy`：
+
+```ini
+[custom]
+custom_proxy_group=中转选择`select`香港中转`日本中转
+
+dialer_proxy=^落地香港$`中转选择
+dialer_proxy=^落地日本$`日本中转
+```
+
+等号右侧的格式为“节点名称正则、反引号、上游代理或代理组名称”。节点名称按正则表达式匹配且
+不区分大小写；使用 `^` 和 `$` 可以精确匹配完整名称。配置按出现顺序应用，如果同一
+节点匹配多条配置，后面的配置覆盖前面的配置。上游名称必须是最终配置中存在的节点或
+代理组，且节点不能直接将自身设为上游。没有匹配任何节点时，程序会写出配置并以状态
+码 `2` 报告警告。
+
+GitHub Actions 的 `vless2clash-gist.yml` 已通过 `VLESS2CLASH_CONFIG` 加载外部配置，
+因此只需修改该 Secret 指向的 `subconverter.ini`，workflow 本身不需要调整。
 
 `url-test`、`fallback` 和 `load-balance` 代理组的测试参数格式为
 `interval,timeout,tolerance,max-failed-times`；可选参数可以留空。例如：

@@ -13,6 +13,7 @@ import yaml
 class ExternalConfig:
     groups: list[str] = field(default_factory=list)
     rulesets: list[str] = field(default_factory=list)
+    dialer_proxies: list[str] = field(default_factory=list)
     enable_rule_generator: bool = True
     overwrite_original_rules: bool = False
 
@@ -35,11 +36,51 @@ def parse_external_config(content: str) -> ExternalConfig:
             result.groups.append(value)
         elif key == "ruleset":
             result.rulesets.append(value)
+        elif key == "dialer_proxy":
+            result.dialer_proxies.append(value)
         elif key == "enable_rule_generator":
             result.enable_rule_generator = value.lower() in {"1", "true", "yes", "on"}
         elif key == "overwrite_original_rules":
             result.overwrite_original_rules = value.lower() in {"1", "true", "yes", "on"}
     return result
+
+
+def apply_dialer_proxies(
+    specs: list[str],
+    proxies: list[dict[str, object]],
+    *,
+    group_names: set[str] | None = None,
+) -> list[str]:
+    """Apply regex-based dialer-proxy settings and return non-fatal warnings."""
+    valid_targets = {
+        *(str(proxy["name"]) for proxy in proxies),
+        *(group_names or set()),
+    }
+    warnings: list[str] = []
+    for spec in specs:
+        fields = spec.split("`", 1)
+        if len(fields) != 2 or not all(field.strip() for field in fields):
+            raise ValueError(
+                "dialer_proxy 格式无效，应为 节点名称正则`上游代理或代理组名称: "
+                f"{spec}"
+            )
+        pattern, target = (field.strip() for field in fields)
+        try:
+            matcher = re.compile(pattern, re.IGNORECASE)
+        except re.error as exc:
+            raise ValueError(f"dialer_proxy 正则表达式无效 {pattern!r}: {exc}") from exc
+        if target not in valid_targets:
+            raise ValueError(f"dialer_proxy 引用了不存在的代理或代理组 {target!r}")
+
+        matched = [proxy for proxy in proxies if matcher.search(str(proxy["name"]))]
+        if not matched:
+            warnings.append(f"dialer_proxy {pattern!r} 没有匹配任何节点")
+            continue
+        for proxy in matched:
+            if str(proxy["name"]) == target:
+                raise ValueError(f"节点 {target!r} 不能将自身设为 dialer-proxy")
+            proxy["dialer-proxy"] = target
+    return warnings
 
 
 def _matched_names(pattern: str, names: list[str]) -> list[str]:

@@ -69,7 +69,7 @@ jobs:
             exit 1
           fi
           if [[ $status -eq 2 ]]; then
-            echo "::warning::vless2clash generated the file with rule validation warnings"
+            echo "::warning::vless2clash generated the file with configuration validation warnings"
           fi
 
       - name: Upload configuration to Gist
