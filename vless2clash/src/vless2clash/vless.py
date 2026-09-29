@@ -207,7 +207,9 @@ def _xray_ech_settings(tls_settings: dict[str, object]) -> dict[str, object]:
     return result
 
 
-def _normalize_download_settings(value: object) -> dict[str, object]:
+def _normalize_download_settings(
+    value: object, *, parent_security: str = ""
+) -> dict[str, object]:
     if not isinstance(value, dict):
         return {}
 
@@ -256,6 +258,10 @@ def _normalize_download_settings(value: object) -> dict[str, object]:
             result["tls"] = True
         elif security in {"none", ""}:
             result["tls"] = False
+        if parent_security == "reality" and security != "reality":
+            # A non-nil option overrides Mihomo's inherited uplink Reality config;
+            # RealityOptions.Parse treats an explicitly empty public key as disabled.
+            result["reality-opts"] = {"public-key": ""}
 
     xhttp_settings = value.get("xhttpSettings") or value.get("splithttpSettings")
     if isinstance(xhttp_settings, dict):
@@ -348,7 +354,8 @@ def _normalize_xhttp(params: dict[str, str]) -> dict[str, object]:
         extra.get("downloadSettings")
         or extra.get("download-settings")
         or nested_settings.get("downloadSettings")
-        or nested_settings.get("download-settings")
+        or nested_settings.get("download-settings"),
+        parent_security=params.get("security", "").lower(),
     )
     if download:
         result["download-settings"] = download

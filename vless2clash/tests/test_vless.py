@@ -99,6 +99,24 @@ def test_parse_xhttp_download_settings() -> None:
     }
 
 
+def test_tls_download_disables_inherited_reality() -> None:
+    extra = json.dumps(
+        {
+            "downloadSettings": {
+                "address": "download.example.com",
+                "security": "tls",
+            }
+        }
+    )
+    link = (
+        "vless://00000000-0000-4000-8000-000000000000@example.com:443"
+        f"?encryption=none&security=reality&pbk=public_key&type=xhttp&extra={extra}#XHTTP"
+    )
+    download = parse_vless_link(link)["xhttp-opts"]["download-settings"]
+    assert download["tls"] is True
+    assert download["reality-opts"] == {"public-key": ""}
+
+
 def test_base64_xhttp_extra_preserves_sibling_settings() -> None:
     extra = {
         "xhttpSettings": {"xPaddingBytes": "100-1000"},

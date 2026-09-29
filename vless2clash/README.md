@@ -76,11 +76,11 @@ Mihomo 的 `ech-opts.config`。若使用 `查询域名+DNS URL` 形式，则转�
 `ech-opts.query-server-name`；Mihomo 不支持为单个代理保留其中指定的 DNS URL 和
 `echForceQuery` 行为，实际查询使用 Mihomo 自身的 DNS 配置。
 
-Mihomo 当前会让 xHTTP 下载连接继承上行的 Reality 设置，同时又拒绝使用空的
-`download-settings.reality-opts` 关闭继承。因此 Xray 中“Reality 上行、普通 TLS
-下行”的组合暂时无法无损表示；转换器仍会保留下载服务器、TLS、路径、SNI、指纹
-和 ECH 等可表达字段。显式 `security=tls` 的节点不会因为残留 `pbk` 被误判为
-Reality。
+Mihomo 默认会让 xHTTP 下载连接继承上行的 Reality 设置。转换“Reality 上行、普通
+TLS 下行”时，转换器会在 `download-settings` 中生成
+`reality-opts: {public-key: ""}`，通过显式空公钥覆盖并关闭下行 Reality。注意空对象
+`reality-opts: {}` 会被 Mihomo 拒绝，不能达到相同效果。显式 `security=tls` 的节点
+也不会因为残留 `pbk` 被误判为 Reality。
 
 外部 INI 当前支持 `custom_proxy_group`、Clash HTTP `ruleset`、`[]` 内联规则、`enable_rule_generator` 和 `overwrite_original_rules`。它不是完整重写 subconverter 的全部脚本、模板和规则格式。
 
