@@ -1,9 +1,8 @@
 name: Update VLESS Clash config in Gist
 
 on:
-  schedule:
-    # GitHub Actions cron uses UTC. This is 11:17 in Asia/Shanghai.
-    - cron: "17 3 * * *"
+  # schedule:
+  #   - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
